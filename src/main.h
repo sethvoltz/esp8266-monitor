@@ -9,8 +9,9 @@
 
 // Screen Control
 #define SCREEN_COUNT                  20 // Number of screens that can be stored
-#define INDICATOR_COLOR               55 // Color as angle [0 <= n < 360]
-#define INDICATOR_BRIGHTNESS          128 // Global indicator brightness [0 <= n < 256]
+#define INDICATOR_COLOR               60 // Color as angle [0 <= n < 360]
+#define INDICATOR_SATURATION          0.95 // [0 <= n <= 1]
+#define INDICATOR_BRIGHTNESS          80 // Global indicator brightness [0 <= n < 256]
 #define MAX_NUM_PARAMS                4
 
 // NeoPixel Control

@@ -137,7 +137,7 @@ void updateLEDs(unsigned long time_diff) {
     for(size_t led = 0; led < PIXELS_PER_SCREEN; led++) {
       strip.setPixelColor(
         indicator * PIXELS_PER_SCREEN + led,
-        hsi2rgbw(INDICATOR_COLOR, 1, indicatorBrightness[indicator])
+        hsi2rgbw(INDICATOR_COLOR, INDICATOR_SATURATION, indicatorBrightness[indicator])
       );
     }
   }
