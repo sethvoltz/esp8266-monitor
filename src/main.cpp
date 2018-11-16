@@ -16,8 +16,8 @@
 // =----------------------------------------------------------------------------------= Globals =--=
 
 // Display Pixels
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(PIXEL_COUNT, PIXEL_PIN, PIXEL_TYPE);
-float indicatorBrightness[PIXEL_COUNT];
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(PIXEL_COUNT, PIXEL_PIN, NEO_GRBW + NEO_KHZ800);
+float indicatorBrightness[SCREEN_COUNT];
 int currentIndicator;
 
 // Screens
@@ -26,44 +26,6 @@ int screenIndicators[SCREEN_COUNT];
 
 // Command Buffer
 String commandBuffer;
-
-
-// =-------------------------------------------------------------------------= Helper Functions =--=
-
-// Input a value 0 to 255 to get a color value.
-// Brightness percent between 0 and 1
-// The colours are a transition r - g - b - back to r.
-uint32_t Wheel(byte WheelPos, float brightness) {
-  if (brightness == 0) {
-    return strip.Color(0, 0, 0);
-  }
-
-  if (WheelPos < 85) {
-    return strip.Color(
-      scale(WheelPos * 3, brightness),
-      scale(255 - WheelPos * 3, brightness),
-      scale(0, brightness)
-    );
-  } else if (WheelPos < 170) {
-    WheelPos -= 85;
-    return strip.Color(
-      scale(255 - WheelPos * 3, brightness),
-      scale(0, brightness),
-      scale(WheelPos * 3, brightness)
-    );
-  } else {
-    WheelPos -= 170;
-    return strip.Color(
-      scale(0, brightness),
-      scale(WheelPos * 3, brightness),
-      scale(255 - WheelPos * 3, brightness)
-    );
-  }
-}
-
-byte scale(byte value, float percent) {
-  return map(value, 0, 255, 0, (int)(percent * 255));
-}
 
 
 // =----------------------------------------------------------------------------= Configuration =--=
@@ -158,19 +120,26 @@ void updateLEDs(unsigned long time_diff) {
   float percent = (float)time_diff / (float)FADE_DURATION_MSEC;
   bool needToWrite = false;
 
-  for (int i = 0; i < PIXEL_COUNT; ++i) {
-    if (i == currentIndicator && indicatorBrightness[i] < 1) {
+  for (int indicator = 0; indicator < SCREEN_COUNT; ++indicator) {
+    if (indicator == currentIndicator && indicatorBrightness[indicator] < 1) {
       // fade up
-      indicatorBrightness[i] += percent;
-      if (indicatorBrightness[i] > 1) indicatorBrightness[i] = 1;
+      indicatorBrightness[indicator] += percent;
+      if (indicatorBrightness[indicator] > 1) indicatorBrightness[indicator] = 1;
       needToWrite = true;
-    } else if (i != currentIndicator && indicatorBrightness[i] > 0) {
+    } else if (indicator != currentIndicator && indicatorBrightness[indicator] > 0) {
       // fade down
-      indicatorBrightness[i] -= percent;
-      if (indicatorBrightness[i] < 0) indicatorBrightness[i] = 0;
+      indicatorBrightness[indicator] -= percent;
+      if (indicatorBrightness[indicator] < 0) indicatorBrightness[indicator] = 0;
       needToWrite = true;
     }
-    strip.setPixelColor(i, Wheel(INDICATOR_COLOR, indicatorBrightness[i]));
+
+    // Set all pixels the same
+    for(size_t led = 0; led < PIXELS_PER_SCREEN; led++) {
+      strip.setPixelColor(
+        indicator * PIXELS_PER_SCREEN + led,
+        hsi2rgbw(INDICATOR_COLOR, 1, indicatorBrightness[indicator])
+      );
+    }
   }
 
   if (needToWrite) {
@@ -317,6 +286,52 @@ void setIndicatorByName(String name) {
 void setIndicator(int indicator) {
   currentIndicator = indicator;
 }
+
+// =-------------------------------------------------------------------------= Helper Functions =--=
+
+// Same as the Arduino API map() function, except for floats
+float floatmap(float x, float in_min, float in_max, float out_min, float out_max) {
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+// Convert HSI colors to RGBW Neopixel colors
+uint32_t hsi2rgbw(float H, float S, float I) {
+  int r, g, b, w;
+  float cos_h, cos_1047_h;
+
+  H = fmod(H, 360); // cycle H around to 0-360 degrees
+  H = 3.14159 * H / (float)180; // Convert to radians.
+  S = S > 0 ? (S < 1 ? S : 1) : 0; // clamp S and I to interval [0,1]
+  I = I > 0 ? (I < 1 ? I : 1) : 0;
+
+  if(H < 2.09439) {
+    cos_h = cos(H);
+    cos_1047_h = cos(1.047196667 - H);
+    r = S * 255 * I / 3 * (1 + cos_h / cos_1047_h);
+    g = S * 255 * I / 3 * (1 + (1 - cos_h / cos_1047_h));
+    b = 0;
+    w = 255 * (1 - S) * I;
+  } else if(H < 4.188787) {
+    H = H - 2.09439;
+    cos_h = cos(H);
+    cos_1047_h = cos(1.047196667 - H);
+    g = S * 255 * I / 3 * (1 + cos_h / cos_1047_h);
+    b = S * 255 * I / 3 * (1 + (1 - cos_h / cos_1047_h));
+    r = 0;
+    w = 255 * (1 - S) * I;
+  } else {
+    H = H - 4.188787;
+    cos_h = cos(H);
+    cos_1047_h = cos(1.047196667 - H);
+    b = S * 255 * I / 3 * (1 + cos_h / cos_1047_h);
+    r = S * 255 * I / 3 * (1 + (1 - cos_h / cos_1047_h));
+    g = 0;
+    w = 255 * (1 - S) * I;
+  }
+
+  return strip.Color(r, g, b, w);
+}
+
 
 // =-------------------------------------------------------------------------= Init and Runtime =--=
 
