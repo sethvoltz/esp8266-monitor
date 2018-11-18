@@ -29,6 +29,10 @@ ioreg -c IOSerialBSDClient -r -t \
   | sed -n 's/.*"\(\/dev\/.*\)".*/\1/p'
 ```
 
+### `help`
+
+Print a help screen with a summary of the commands
+
 ### `list`
 
 Show all screens as configured

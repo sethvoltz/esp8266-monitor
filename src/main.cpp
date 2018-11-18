@@ -266,6 +266,9 @@ void parseCommand(String line) {
     }
     setIndicatorByName(argv[1]);
 
+  } else if (argv[0] == "help") {
+    showHelp();
+
   } else if (argv[0] == "list") {
     listScreens();
 
@@ -299,6 +302,19 @@ void parseCommand(String line) {
   } else {
     Serial.println("ERROR: Unknown command");
   }
+}
+
+void showHelp() {
+  Serial.println("OK");
+
+  Serial.println("help - print this help screen");
+  Serial.println("list - show configured monitors");
+  Serial.println("show - pretty print full config file");
+  Serial.println("add <name> <index> - add a new indicator to the set");
+  Serial.println("remove <name> - remove an indicator from the set");
+  Serial.println("set <name> - set the current active indicator");
+  Serial.println("color <hue> <saturation> <intensity> - change the indicator color");
+  Serial.println("reset - reset the indicator color to hardware");
 }
 
 void listScreens() {

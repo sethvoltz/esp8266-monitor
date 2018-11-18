@@ -49,6 +49,7 @@ void updateLEDs(unsigned long time_diff);
 void handleSerial();
 void parseCommand(String line);
 
+void showHelp();
 void listScreens();
 void showConfig();
 void addScreen(String id, int indicator);
