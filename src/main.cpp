@@ -24,6 +24,15 @@ int currentIndicator;
 String screenNames[SCREEN_COUNT];
 int screenIndicators[SCREEN_COUNT];
 
+// Color Management
+float indicatorH = INDICATOR_HUE;
+float targetH = INDICATOR_HUE;
+float indicatorS = INDICATOR_SATURATION;
+float targetS = INDICATOR_SATURATION;
+int indicatorI = INDICATOR_INTENSITY;
+int targetI = INDICATOR_INTENSITY;
+float colorFadePercent = 0.0;
+
 // Command Buffer
 String commandBuffer;
 
@@ -64,12 +73,19 @@ void setupConfig() {
         Serial.println();
 
         if (json.success()) {
-          int screen = 0;
-          for (JsonObject::iterator it = json.begin(); it != json.end(); ++it) {
-            screenNames[screen] = it->key;
-            screenIndicators[screen] = it->value;
-            screen++;
+          if (json.containsKey("screens")) {
+            JsonObject& screens = json["screens"];
+            int screen = 0;
+            for (JsonObject::iterator it = screens.begin(); it != screens.end(); ++it) {
+              screenNames[screen] = it->key;
+              screenIndicators[screen] = it->value;
+              screen++;
+            }
           }
+
+          indicatorH = json["color"]["hue"] || INDICATOR_HUE;
+          indicatorS = json["color"]["saturation"] || INDICATOR_SATURATION;
+          indicatorI = json["color"]["intensity"] || INDICATOR_INTENSITY;
         } else {
           Serial.println("Failed to load json config");
         }
@@ -89,12 +105,19 @@ void saveConfig() {
     Serial.println("Failed to open config file for writing");
   }
 
+  JsonObject& screens = json.createNestedObject("screens");
   for (size_t screen = 0; screen < SCREEN_COUNT; screen++) {
     if (screenNames[screen].length() == 0) {
       break;
     }
-    json[screenNames[screen]] = screenIndicators[screen];
+    screens[screenNames[screen]] = screenIndicators[screen];
   }
+
+  JsonObject& color = json.createNestedObject("color");
+  // Use target so save can be called on set
+  color["hue"] = targetH;
+  color["saturation"] = targetS;
+  color["intensity"] = targetI;
 
   Serial.println("Saving config...");
   json.printTo(Serial);
@@ -102,6 +125,28 @@ void saveConfig() {
   json.printTo(configFile);
   configFile.close();
 }
+
+void printConfig() {
+  File configFile = SPIFFS.open("/config.json", "r");
+  if (!configFile) {
+    Serial.println("Failed to open config file for writing");
+    return;
+  }
+
+  size_t size = configFile.size();
+  // Allocate a buffer to store contents of the file.
+  std::unique_ptr<char[]> buf(new char[size]);
+
+  configFile.readBytes(buf.get(), size);
+  DynamicJsonBuffer jsonBuffer;
+
+  JsonObject& json = jsonBuffer.parseObject(buf.get());
+  json.prettyPrintTo(Serial);
+  Serial.println();
+
+  configFile.close();
+}
+
 
 // =------------------------------------------------------------------------------= LED Display =--=
 
@@ -119,6 +164,38 @@ void updateLEDs(unsigned long time_diff) {
   // current indicator fades to full, all others fade out
   float percent = (float)time_diff / (float)FADE_DURATION_MSEC;
   bool needToWrite = false;
+  float currentH, currentS, currentI;
+
+  if (targetH != indicatorH || targetS != indicatorS || targetI != indicatorI) {
+    // Step forward
+    colorFadePercent += percent;
+
+    if (colorFadePercent >= 1) {
+      currentH = indicatorH = targetH;
+      currentS = indicatorS = targetS;
+      currentI = indicatorI = targetI;
+      colorFadePercent = 0;
+    } else {
+      // Hue
+      float diffH = indicatorH - targetH;
+      float distanceH = (180.0 - fabs(fmod(fabs(diffH), 360.0) - 180.0)) * ((diffH > 0) ? -1 : 1);
+      currentH = indicatorH + distanceH * colorFadePercent;
+
+      // Saturation
+      float diffS = targetS - indicatorS;
+      currentS = indicatorS + diffS * colorFadePercent;
+
+      // Intensity
+      int diffI = targetI - indicatorI;
+      currentI = indicatorI + diffI * colorFadePercent;
+    }
+
+    needToWrite = true;
+  } else {
+    currentH = indicatorH;
+    currentS = indicatorS;
+    currentI = indicatorI;
+  }
 
   for (int indicator = 0; indicator < SCREEN_COUNT; ++indicator) {
     if (indicator == currentIndicator && indicatorBrightness[indicator] < 1) {
@@ -137,13 +214,13 @@ void updateLEDs(unsigned long time_diff) {
     for(size_t led = 0; led < PIXELS_PER_SCREEN; led++) {
       strip.setPixelColor(
         indicator * PIXELS_PER_SCREEN + led,
-        hsi2rgbw(INDICATOR_COLOR, INDICATOR_SATURATION, indicatorBrightness[indicator])
+        hsi2rgbw(currentH, currentS, indicatorBrightness[indicator])
       );
     }
   }
 
   if (needToWrite) {
-    strip.setBrightness(INDICATOR_BRIGHTNESS);
+    strip.setBrightness(currentI);
     strip.show();
   }
 }
@@ -189,6 +266,9 @@ void parseCommand(String line) {
   } else if (argv[0] == "list") {
     listScreens();
 
+  } else if (argv[0] == "show") {
+    showConfig();
+
   } else if (argv[0] == "add") {
     if (argc < 3) {
       Serial.println("ERROR: Insufficient parameters");
@@ -202,6 +282,16 @@ void parseCommand(String line) {
       return;
     }
     removeScreen(argv[1]);
+
+  } else if (argv[0] == "color") {
+    if (argc < 4) {
+      Serial.println("ERROR: Insufficient parameters");
+      return;
+    }
+    setIndicatorColor(atof(argv[1].c_str()), atof(argv[2].c_str()), atoi(argv[3].c_str()));
+
+  } else if (argv[0] == "reset") {
+    resetIndicatorColor();
 
   } else {
     Serial.println("ERROR: Unknown command");
@@ -217,6 +307,12 @@ void listScreens() {
     }
     Serial.printf("SCREEN: %s (%i)\n", screenNames[screen].c_str(), screenIndicators[screen]);
   }
+}
+
+void showConfig() {
+  Serial.println("OK");
+
+  printConfig();
 }
 
 void addScreen(String name, int indicator) {
@@ -285,6 +381,26 @@ void setIndicatorByName(String name) {
 
 void setIndicator(int indicator) {
   currentIndicator = indicator;
+}
+
+void setIndicatorColor(float H, float S, int I) {
+  targetH = fmod(H, 360); // cycle H around to 0-360 degrees
+  targetS = S > 0 ? (S < 1 ? S : 1) : 0; // clamp S and I to interval [0,1]
+  targetI = I > 0 ? (I < 255 ? I : 255) : 0;
+
+  saveConfig();
+
+  Serial.println("OK");
+}
+
+void resetIndicatorColor() {
+  targetH = INDICATOR_HUE;
+  targetS = INDICATOR_SATURATION;
+  targetI = INDICATOR_INTENSITY;
+
+  saveConfig();
+
+  Serial.println("OK");
 }
 
 // =-------------------------------------------------------------------------= Helper Functions =--=

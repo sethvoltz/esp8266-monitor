@@ -9,9 +9,9 @@
 
 // Screen Control
 #define SCREEN_COUNT                  20 // Number of screens that can be stored
-#define INDICATOR_COLOR               60 // Color as angle [0 <= n < 360]
+#define INDICATOR_HUE                 60 // Color as hue angle [0 <= n < 360]
 #define INDICATOR_SATURATION          0.95 // [0 <= n <= 1]
-#define INDICATOR_BRIGHTNESS          80 // Global indicator brightness [0 <= n < 256]
+#define INDICATOR_INTENSITY           80 // Global indicator brightness [0 <= n < 256]
 #define MAX_NUM_PARAMS                4
 
 // NeoPixel Control
@@ -41,6 +41,7 @@ uint32_t hsi2rgbw(float H, float S, float I);
 void setupDisplay();
 void setupConfig();
 void saveConfig();
+void printConfig();
 
 void handleDisplay();
 void updateLEDs(unsigned long time_diff);
@@ -49,7 +50,10 @@ void handleSerial();
 void parseCommand(String line);
 
 void listScreens();
+void showConfig();
 void addScreen(String id, int indicator);
 void removeScreen(String id);
 void setIndicatorByName(String name);
 void setIndicator(int indicator);
+void setIndicatorColor(float H, float S, int I);
+void resetIndicatorColor();
