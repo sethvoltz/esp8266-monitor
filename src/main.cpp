@@ -83,9 +83,12 @@ void setupConfig() {
             }
           }
 
-          indicatorH = json["color"]["hue"] || INDICATOR_HUE;
-          indicatorS = json["color"]["saturation"] || INDICATOR_SATURATION;
-          indicatorI = json["color"]["intensity"] || INDICATOR_INTENSITY;
+          if (json.containsKey("color")) {
+            JsonObject& color = json["color"];
+            indicatorH = targetH = color["hue"];
+            indicatorS = targetS = color["saturation"];
+            indicatorI = targetI = color["intensity"];
+          }
         } else {
           Serial.println("Failed to load json config");
         }
