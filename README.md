@@ -21,13 +21,15 @@ remove one
 remove two
 ```
 
-On macOS, you can fetch the correct USB device with the following command.
+On macOS, you can fetch the correct USB device with the following command after [installing the drivers][drivers].
 
 ```bash
 ioreg -c IOSerialBSDClient -r -t \
   | awk 'f;/com_silabs_driver_CP210xVCPDriver/{f=1};/IOCalloutDevice/{exit}' \
   | sed -n 's/.*"\(\/dev\/.*\)".*/\1/p'
 ```
+
+[drivers]: https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers
 
 ### `help`
 
